@@ -5,12 +5,13 @@ from preprocess_query import preprocess_query, extract_drug_names
 
 # Load the data from the CSV file
 df = pd.read_csv('/home/mg/nlpchatbot/data/test_data.csv')
+last_drug_name = None  # Global variable to store last mentioned drug
 
 def detect_query_type(text):
     text = text.lower()
     price_keywords = ['price', 'cost', 'how much', 'expensive', 'cheap', 'afford']
     description_keywords = [
-        'description', 'what is', 'tell me about', 'explain',
+        'description', 'what is', " what's ", 'tell me about', 'explain',
         'info', 'information', 'details', 'describe',
         'elaborate on', 'give me details about', 'specify',
         'clarify', 'elucidate', 'expound on', 'characterize',
@@ -20,7 +21,6 @@ def detect_query_type(text):
         'give an overview of', 'what does it mean',
         'what is the purpose of', 'how would you describe'
     ]
-    
     if any(word in text for word in price_keywords):
         return 'price'
     elif any(word in text for word in description_keywords):
@@ -29,12 +29,23 @@ def detect_query_type(text):
         return 'unknown'
 
 def process_request(text):
+    global last_drug_name
     query_type = detect_query_type(text)
     substances = extract_drug_names(text, df['Name'].tolist())
+    print(f"[DEBUG] Extracted substances: {substances}")  # Debug information
     
-    for substance in substances:
-        drug_name = substance.lower()
-        drug_info = df[df['Name'].str.lower() == drug_name]
+    if substances:
+        last_drug_name = substances[0].lower()
+    elif last_drug_name:
+        substances = [last_drug_name]
+    
+    print(f"[DEBUG] Using drug name: {last_drug_name}")  # Debug information
+    
+    if substances:
+        drug_name = substances[0]
+        # Make the search case-insensitive
+        drug_info = df[df['Name'].str.lower() == drug_name.lower()]
+        print(f"[DEBUG] Drug info: {drug_info}")  # Debug information
         
         if not drug_info.empty:
             row = drug_info.iloc[0]
@@ -42,10 +53,14 @@ def process_request(text):
                 return f"The international price of {row['Name']} is {row.get('International Price', 'Not available')}."
             elif query_type == 'description':
                 return f"{row['Description']}"
+        else:
+            return f"Sorry, I couldn't find information about {drug_name}. Please check the spelling or try another drug name."
     
     return "Sorry, I couldn't understand your request. Please ask about a specific drug's description or price."
 
 def test_description_and_price_request():
+    global last_drug_name
+    last_drug_name = None
     print("Welcome to the Drug Info Bot!")
     print("Ask me about drug description or price. Type 'exit' to stop.")
     
@@ -55,13 +70,11 @@ def test_description_and_price_request():
             print("Goodbye!")
             break
         
-        # Process and clean the user input using the new preprocess_query function
+        # Process and clean the user input using the preprocess_query function
         processed_input = preprocess_query(user_input)
-        
         start_time = time.time()
         response = process_request(processed_input)
         end_time = time.time()
-        
         elapsed_time = end_time - start_time
         print(f"Bot: {response}")
         print(f"Time taken: {elapsed_time:.4f} seconds")
