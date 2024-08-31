@@ -2,16 +2,20 @@ import pandas as pd
 import time
 import re
 from preprocess_query import preprocess_query, extract_drug_names
+from chat_ansewer import AdvancedChatbot
 
 # Load the data from the CSV file
 df = pd.read_csv('/home/mg/nlpchatbot/data/test_data.csv')
 last_drug_name = None  # Global variable to store last mentioned drug
 
+# Initialize the general conversational chatbot
+general_chatbot = AdvancedChatbot('/home/mg/nlpchatbot/data/dialog_talk_agent.xlsx')
+
 def detect_query_type(text):
     text = text.lower()
     price_keywords = ['price', 'cost', 'how much', 'expensive', 'cheap', 'afford']
     description_keywords = [
-        'description', 'what is', " what's ", 'tell me about', 'explain',
+        'description', 'what is', "what's", 'tell me about', 'explain',
         'info', 'information', 'details', 'describe',
         'elaborate on', 'give me details about', 'specify',
         'clarify', 'elucidate', 'expound on', 'characterize',
@@ -26,7 +30,7 @@ def detect_query_type(text):
     elif any(word in text for word in description_keywords):
         return 'description'
     else:
-        return 'unknown'
+        return 'general'
 
 def process_request(text):
     global last_drug_name
@@ -41,7 +45,7 @@ def process_request(text):
     
     print(f"[DEBUG] Using drug name: {last_drug_name}")  # Debug information
     
-    if substances:
+    if substances and query_type != 'general':
         drug_name = substances[0]
         # Make the search case-insensitive
         drug_info = df[df['Name'].str.lower() == drug_name.lower()]
@@ -56,13 +60,16 @@ def process_request(text):
         else:
             return f"Sorry, I couldn't find information about {drug_name}. Please check the spelling or try another drug name."
     
-    return "Sorry, I couldn't understand your request. Please ask about a specific drug's description or price."
+    elif query_type == 'general':
+        return general_chatbot.get_response(text)
+    
+    return "Sorry, I couldn't understand your request. Please ask about a specific drug's description, price, or ask a general question."
 
 def test_description_and_price_request():
     global last_drug_name
     last_drug_name = None
-    print("Welcome to the Drug Info Bot!")
-    print("Ask me about drug description or price. Type 'exit' to stop.")
+    print("Welcome to the Drug Info and General Chatbot!")
+    print("Ask me about drug description, price, or anything else. Type 'exit' to stop.")
     
     while True:
         user_input = input("You: ")
