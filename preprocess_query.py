@@ -9,7 +9,7 @@ nltk.download('stopwords')
 
 def preprocess_query(text):
     tokens = word_tokenize(text.lower())
-    filtered_tokens = [word for word in tokens if word not in stopwords.words('english')]
+    filtered_tokens = [word for word in tokens]
     corrected_tokens = [str(TextBlob(word).correct()) for word in filtered_tokens]
     cleaned_phrase = ' '.join(corrected_tokens)
     return cleaned_phrase
