@@ -1,6 +1,7 @@
 import pandas as pd
 from chatbot.advanced_chatbot import AdvancedChatbot
-from chatbot.drug_info import get_drug_info
+from chatbot.drug_info import get_drug_info 
+from chatbot.preprocess_query import preprocess_query
 
 def main():
     # Load the drug data
@@ -15,7 +16,7 @@ def main():
     print("Welcome to the Pharmacy Chatbot. Ask your questions about drugs and prices.")
     
     while True:
-        user_input = input("You: ")
+        user_input = preprocess_query(input("You: "))
         
         # Check if the user wants to exit
         if user_input.lower() in ['exit', 'quit', 'bye']:
