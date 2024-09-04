@@ -16,10 +16,16 @@ def get_drug_info(text, df, last_drug_name):
     query_type = detect_query_type(text)
     substances = extract_drug_names(text, df['Name'].tolist())
 
+    # If a new drug is mentioned, update the last_drug_name
     if substances:
         last_drug_name = substances[0].lower()
+    # If no new drug is mentioned, keep using the last known drug name
     elif last_drug_name:
         substances = [last_drug_name]
+
+    # Initialize response and drug_name
+    response = "Sorry, I couldn't understand your request. Please ask about a specific drug's description or price."
+    drug_name = None
 
     if substances:
         drug_name = substances[0]
@@ -28,10 +34,11 @@ def get_drug_info(text, df, last_drug_name):
         if not drug_info.empty:
             row = drug_info.iloc[0]
             if query_type == 'price':
-                return f"The international price of {row['Name']} is {row.get('International Price', 'Not available')}."
+                response = f"The international price of {row['Name']} is {row.get('International Price', 'Not available')}."
             elif query_type == 'description':
-                return f"{row['Description']}"
+                response = f"{row['Description']}"
         else:
-            return f"Sorry, I couldn't find information about {drug_name}. Please check the spelling or try another drug name."
-
-    return "Sorry, I couldn't understand your request. Please ask about a specific drug's description or price."
+            response = f"Sorry, I couldn't find information about {drug_name}. Please check the spelling or try another drug name."
+    
+    # Always return both response and drug_name
+    return response, drug_name
