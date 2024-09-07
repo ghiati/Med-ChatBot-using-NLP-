@@ -54,32 +54,49 @@ def extract_entities(query):
     return entities
 
 def match_drug_name(entities, drug_list):
-    """Match entities to drugs in the list using partial matching."""
-    found_drugs = set()
-    for entity in entities:
-        for drug in drug_list:
-            # Match any entity with part of the drug name (partial matching)
-            if entity.lower() in drug.lower():
-                found_drugs.add(drug)
-    return list(found_drugs)
+    """Match entities to drugs in the list by counting matching words and return the drugs with the highest count."""
+    drug_scores = {}
+    
+    for drug in drug_list:
+        # Tokenize the drug name and convert to lowercase
+        drug_words = drug.lower().split()
+        match_count = 0
+        
+        # Count how many words from the entities match with the drug name
+        for entity in entities:
+            entity_words = entity.lower().split()
+            for word in entity_words:
+                if word in drug_words:
+                    match_count += 1
+        
+        # Store the match count for this drug
+        drug_scores[drug] = match_count
+    
+    # Find the highest match count
+    max_match = max(drug_scores.values())
+    
+    # Return drugs that have the highest match count
+    best_matches = [drug for drug, score in drug_scores.items() if score == max_match]
+    
+    return best_matches
 
-# Load drug dataset
-df = pd.read_csv("/home/mg/nlpchatbot/data/test_data.csv")
+# # Load drug dataset
+# df = pd.read_csv("/home/mg/nlpchatbot/data/test_data.csv")
 
-# Main loop to interact with the user
-while True:
-    drug_query = input("medicine (type 'exit' to quit): ")
-    if drug_query.lower() == 'exit':
-        break
+# # Main loop to interact with the user
+# while True:
+#     drug_query = input("medicine (type 'exit' to quit): ")
+#     if drug_query.lower() == 'exit':
+#         break
     
-    # Preprocess user input
-    cleaned_input = preprocess_query(drug_query)
+#     # Preprocess user input
+#     cleaned_input = preprocess_query(drug_query)
     
-    # Extract entities (drug names or important keywords)
-    entities = extract_entities(cleaned_input)
+#     # Extract entities (drug names or important keywords)
+#     entities = extract_entities(cleaned_input)
     
-    # Match extracted entities with drug names
-    drug_matches = match_drug_name(entities, df['Name'].tolist())
+#     # Match extracted entities with drug names
+#     drug_matches = match_drug_name(entities, df['Name'].tolist())
     
-    # Output results
-    print("Drugs name: ", drug_matches if drug_matches else "No drugs found")
+#     # Output results
+#     print("Drugs name: ", drug_matches if drug_matches else "No drugs found")
