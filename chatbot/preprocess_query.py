@@ -1,18 +1,85 @@
 import nltk
-from nltk.corpus import stopwords
+from nltk.corpus import stopwords, wordnet
 from nltk.tokenize import word_tokenize
-from textblob import TextBlob
+from nltk import pos_tag
+import spacy
+import pandas as pd
 
+# Load SpaCy model for named entity recognition (NER)
+nlp = spacy.load("en_core_web_sm")
+
+# Download required NLTK data
 nltk.download('punkt', quiet=True)
 nltk.download('stopwords', quiet=True)
+nltk.download('wordnet', quiet=True)
+nltk.download('averaged_perceptron_tagger', quiet=True)
+
+def get_wordnet_pos(treebank_tag):
+    """Convert Treebank POS tags to WordNet POS tags for lemmatization."""
+    if treebank_tag.startswith('J'):
+        return wordnet.ADJ
+    elif treebank_tag.startswith('V'):
+        return wordnet.VERB
+    elif treebank_tag.startswith('N'):
+        return wordnet.NOUN
+    elif treebank_tag.startswith('R'):
+        return wordnet.ADV
+    else:
+        return wordnet.NOUN
 
 def preprocess_query(text):
-    tokens = word_tokenize(text.lower())
-    filtered_tokens = [word for word in tokens]
-    corrected_tokens = [str(TextBlob(word).correct()) for word in filtered_tokens]
-    cleaned_phrase = ' '.join(corrected_tokens)
+    # Convert to lowercase and remove stopwords
+    text = text.lower()
+    stop = set(stopwords.words('english'))
+    tokens = [word for word in word_tokenize(text) if word not in stop]
+
+    # POS tagging and lemmatization
+    pos_tagged = pos_tag(tokens)
+    lema = nltk.WordNetLemmatizer()
+
+    lema_words = [lema.lemmatize(token, get_wordnet_pos(pos)) for token, pos in pos_tagged]
+    cleaned_phrase = ' '.join(lema_words)
+    
     return cleaned_phrase
 
-def extract_drug_names(cleaned_phrase, drug_list):
-    found_drugs = [drug for drug in drug_list if drug.lower() in cleaned_phrase]
-    return found_drugs
+def extract_entities(query):
+    """Extract named entities from the query using SpaCy's NER."""
+    doc = nlp(query)
+    entities = [ent.text for ent in doc.ents if ent.label_ in ['ORG', 'PRODUCT', 'GPE', 'PERSON']]  # Focus on products (drugs)
+    
+    # If no entities are found, fall back to keywords extraction
+    if not entities:
+        entities = query.split()
+    
+    return entities
+
+def match_drug_name(entities, drug_list):
+    """Match entities to drugs in the list using partial matching."""
+    found_drugs = set()
+    for entity in entities:
+        for drug in drug_list:
+            # Match any entity with part of the drug name (partial matching)
+            if entity.lower() in drug.lower():
+                found_drugs.add(drug)
+    return list(found_drugs)
+
+# Load drug dataset
+df = pd.read_csv("/home/mg/nlpchatbot/data/test_data.csv")
+
+# Main loop to interact with the user
+while True:
+    drug_query = input("medicine (type 'exit' to quit): ")
+    if drug_query.lower() == 'exit':
+        break
+    
+    # Preprocess user input
+    cleaned_input = preprocess_query(drug_query)
+    
+    # Extract entities (drug names or important keywords)
+    entities = extract_entities(cleaned_input)
+    
+    # Match extracted entities with drug names
+    drug_matches = match_drug_name(entities, df['Name'].tolist())
+    
+    # Output results
+    print("Drugs name: ", drug_matches if drug_matches else "No drugs found")
