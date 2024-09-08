@@ -1,12 +1,11 @@
 import pandas as pd
 import nltk
 import re
-from nltk.stem import WordNetLemmatizer
-from sklearn.feature_extraction.text import TfidfVectorizer
+from nltk.stem import wordnet
+from sklearn.feature_extraction.text import CountVectorizer
 from nltk import pos_tag
-from sklearn.metrics.pairwise import cosine_similarity
+from sklearn.metrics import pairwise_distances
 from nltk.corpus import stopwords
-from typing import List, Tuple
 
 # Download necessary NLTK data
 nltk.download('punkt', quiet=True)
@@ -14,47 +13,76 @@ nltk.download('averaged_perceptron_tagger', quiet=True)
 nltk.download('wordnet', quiet=True)
 nltk.download('stopwords', quiet=True)
 
-def preprocess_text(text: str) -> str:
-    text = str(text).lower()
-    return re.sub(r'[^ a-z]', '', text)
+# Text normalization and processing class
+class TextProcessor:
+    def __init__(self):
+        self.lemmatizer = wordnet.WordNetLemmatizer()
+        self.stop_words = set(stopwords.words('english'))
 
-def lemmatize_text(tokens: List[str]) -> List[str]:
-    lemmatizer = WordNetLemmatizer()
-    lemmatized_words = []
-    for token, pos in pos_tag(tokens):
-        if pos.startswith('V'):
-            pos_val = 'v'
-        elif pos.startswith('J'):
-            pos_val = 'a'
-        elif pos.startswith('R'):
-            pos_val = 'r'
+    def text_normalization(self, text):
+        text = str(text).lower()  # Convert to lowercase
+        text = re.sub(r'[^a-z ]', '', text)  # Remove special characters
+        tokens = nltk.word_tokenize(text)  # Tokenize words
+        tags_list = pos_tag(tokens)  # Part-of-speech tagging
+        lema_words = []
+        for token, pos_token in tags_list:
+            pos_val = self.get_pos_tag(pos_token)
+            lema_token = self.lemmatizer.lemmatize(token, pos_val)  # Lemmatize
+            lema_words.append(lema_token)
+        return " ".join(lema_words)
+
+    def get_pos_tag(self, pos_token):
+        if pos_token.startswith('V'):
+            return 'v'  # Verb
+        elif pos_token.startswith('J'):
+            return 'a'  # Adjective
+        elif pos_token.startswith('R'):
+            return 'r'  # Adverb
         else:
-            pos_val = 'n'
-        lemmatized_words.append(lemmatizer.lemmatize(token, pos_val))
-    return lemmatized_words
+            return 'n'  # Noun
 
-def normalize_text(text: str) -> str:
-    preprocessed_text = preprocess_text(text)
-    tokens = nltk.word_tokenize(preprocessed_text)
-    lemmatized_words = lemmatize_text(tokens)
-    return " ".join(lemmatized_words)
+    def remove_stopwords(self, text):
+        text = text.lower()
+        tokens = nltk.word_tokenize(text)
+        filtered_tokens = [word for word in tokens if word not in self.stop_words]
+        return " ".join(filtered_tokens)
 
-def remove_stopwords(text: str) -> str:
-    stop_words = set(stopwords.words('english'))
-    tokens = nltk.word_tokenize(text.lower())
-    return " ".join([token for token in tokens if token not in stop_words])
 
+# Chatbot class with text processing and response matching
 class AdvancedChatbot:
-    def __init__(self, data_path: str):
+    def __init__(self, data_path):
         self.df = pd.read_excel(data_path)
-        self.df.ffill(axis=0, inplace=True)
-        self.df['processed_text'] = self.df['Context'].apply(normalize_text)
-        self.vectorizer = TfidfVectorizer()
-        self.tfidf_matrix = self.vectorizer.fit_transform(self.df['processed_text'])
+        self.df.ffill(axis=0, inplace=True)  # Fill missing values
+        self.text_processor = TextProcessor()  # Initialize text processor
 
-    def get_response(self, user_input: str) -> str:
-        processed_input = normalize_text(remove_stopwords(user_input))
-        input_vector = self.vectorizer.transform([processed_input])
-        similarity_scores = cosine_similarity(self.tfidf_matrix, input_vector)
-        most_similar_index = similarity_scores.argmax()
-        return self.df['Text Response'].iloc[most_similar_index]
+        # Text normalization for context
+        self.df['lemmatized_text'] = self.df['Context'].apply(self.text_processor.text_normalization)
+
+        # Initialize CountVectorizer for Bag of Words
+        self.cv = CountVectorizer()
+        self.df_bow = self.cv.fit_transform(self.df['lemmatized_text']).toarray()  # BoW representation
+
+    def get_response(self, user_input):
+        processed_input = self.text_processor.remove_stopwords(user_input)
+        normalized_input = self.text_processor.text_normalization(processed_input)
+        input_bow = self.cv.transform([normalized_input]).toarray()
+
+        # Calculate cosine similarity and find the best match
+        cosine_value = 1 - pairwise_distances(self.df_bow, input_bow, metric='cosine')
+        best_match_index = cosine_value.argmax()
+
+        return self.df['Text Response'].iloc[best_match_index]
+
+
+# Running the chatbot
+if __name__ == "__main__":
+    chatbot = AdvancedChatbot('/home/mg/nlpchatbot/data/dialog_talk_agent.xlsx')  # Initialize chatbot with the dataset
+
+    print("Chatbot initialized. Type 'exit' to end the conversation.")
+    while True:
+        user_input = input("You: ")
+        if user_input.lower() == 'exit':
+            print("Chatbot: Goodbye!")
+            break
+        response = chatbot.get_response(user_input)
+        print(f"Chatbot: {response}")
