@@ -53,7 +53,7 @@ def extract_entities(query):
     
     return entities
 
-def match_drug_name(entities, drug_list):
+def match_drug_name(entities, drug_list, threshold=1):
     """Match entities to drugs in the list by counting matching words and return the drugs with the highest count."""
     drug_scores = {}
     
@@ -75,13 +75,16 @@ def match_drug_name(entities, drug_list):
     # Find the highest match count
     max_match = max(drug_scores.values())
     
-    # Return drugs that have the highest match count
-    best_matches = [drug for drug, score in drug_scores.items() if score == max_match]
-    
-    return best_matches
+    # Only return drugs if the highest match count exceeds the threshold
+    if max_match >= threshold:
+        best_matches = [drug for drug, score in drug_scores.items() if score == max_match]
+        return best_matches
+    else:
+        return "No relevant drug found."
 
-# # Load drug dataset
-# df = pd.read_csv("/home/mg/nlpchatbot/data/test_data.csv")
+
+# Load drug dataset
+df = pd.read_csv("/home/mg/nlpchatbot/data/test_data.csv")
 
 # # Main loop to interact with the user
 # while True:

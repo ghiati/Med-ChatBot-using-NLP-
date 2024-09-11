@@ -1,34 +1,46 @@
 import pandas as pd
+from chatbot.preprocess_query import preprocess_query, extract_entities, match_drug_name
+from chatbot.drug_info import get_drug_info, detect_query_type
 from chatbot.advanced_chatbot import AdvancedChatbot
-from chatbot.drug_info import get_drug_info 
-from chatbot.preprocess_query import preprocess_query
 
 def main():
-    # Load the drug data
-    drug_data = pd.read_csv('data/test_data.csv')  # Make sure this path is correct
+    # Load the drug dataset
+    df = pd.read_csv("/home/mg/nlpchatbot/data/test_data.csv")
     
-    # Initialize the general chatbot
-    general_chatbot = AdvancedChatbot(data_path='data/dialog_talk_agent.xlsx')
+    # Initialize the AdvancedChatbot
+    advanced_chatbot = AdvancedChatbot("/home/mg/nlpchatbot/data/dialog_talk_agent.xlsx")  # Replace with the actual path
     
-    # State to keep track of the last mentioned drug
+    print("Welcome to the Drug Information Chatbot!")
+    print("You can ask about drug prices, descriptions, or any other questions.")
+    print("Type 'exit' to quit the chatbot.")
+    
     last_drug_name = None
     
-    print("Welcome to the Pharmacy Chatbot. Ask your questions about drugs and prices.")
-    
     while True:
-        user_input = preprocess_query(input("You: "))
+        user_input = input("\nUser: ").strip()
         
-        # Check if the user wants to exit
-        if user_input.lower() in ['exit', 'quit', 'bye']:
-            print("Chatbot: Goodbye!")
+        if user_input.lower() == 'exit':
+            print("Thank you for using the Drug Information Chatbot. Goodbye!")
             break
         
-        # Get the drug info response
-        response, last_drug_name = get_drug_info(user_input, drug_data, last_drug_name)
+        # Detect query type
+        query_type = detect_query_type(user_input)
+        print("detected query type : ",query_type)
         
-        # If the response is the default message, fall back to general chatbot
-        if response.startswith("Sorry, I couldn't understand"):
-            response = general_chatbot.get_response(user_input)
+        # If it's a follow-up question about price and we have a last_drug_name
+        if query_type == 'price' and last_drug_name and not any(drug.lower() in user_input.lower() for drug in df['Name']):
+            response, _ = get_drug_info(f"{last_drug_name} {user_input}", df, last_drug_name)
+        else:
+            # First, try to get drug-specific information
+            response, drug_name = get_drug_info(user_input, df, last_drug_name)
+            
+            # If a specific drug was found, update last_drug_name
+            if drug_name:
+                last_drug_name = drug_name
+            
+            # If no specific drug info was found, use the advanced chatbot
+            if response.startswith("Sorry, I couldn't"):
+                response = advanced_chatbot.get_response(user_input)
         
         print(f"Chatbot: {response}")
 
